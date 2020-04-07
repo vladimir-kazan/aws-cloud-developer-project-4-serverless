@@ -4,8 +4,8 @@ service:
 plugins:
   - serverless-webpack
   - serverless-iam-roles-per-function
-  - serverless-reqvalidator-plugin
-  - serverless-aws-documentation
+  # - serverless-reqvalidator-plugin
+  # - serverless-aws-documentation
 
 provider:
   name: aws
@@ -16,8 +16,8 @@ provider:
     minimumCompressionSize: 1024
   environment:
     AWS_NODEJS_CONNECTION_REUSE_ENABLED: 1
-    TODOS_TABLE: Todos-${self:provider.stage}
-    TODOS_ID_INDEX: UserIdTodoIdIndex
+    TODOS_TABLE: Todos-${self:provider.stage}-1
+    # TODOS_ID_INDEX: UserIdTodoIdIndex
 
   iamRoleStatements:
     - Effect: Allow
@@ -26,26 +26,28 @@ provider:
         - dynamodb:Query
         - dynamodb:PutItem
         - dynamodb:GetItem
+        - dynamodb:DeleteItem
+        - dynamodb:UpdateItem
       Resource: arn:aws:dynamodb:${self:provider.region}:*:table/${self:provider.environment.TODOS_TABLE}
-    - Effect: Allow
-      Action:
-        - dynamodb:Query
-      Resource: arn:aws:dynamodb:${self:provider.region}:*:table/${self:provider.environment.TODOS_TABLE}/index/${self:provider.environment.TODOS_ID_INDEX}
+    # - Effect: Allow
+    #   Action:
+    #     - dynamodb:Query
+    #   Resource: arn:aws:dynamodb:${self:provider.region}:*:table/${self:provider.environment.TODOS_TABLE}/index/${self:provider.environment.TODOS_ID_INDEX}
 
 
 
-custom:
-  topicName: imagesTopic-${self:provider.stage}
-  documentation:
-    api:
-      info:
-        version: v1.0.0
-        title: TODO List API
-        description: Serverless TODO List application
-    models:
-      - name: CreateTodoItemRequest
-        contentType: application/json
-        schema: ${file(docs/create-todo-request.json)}
+# custom:
+#   topicName: imagesTopic-${self:provider.stage}
+#   documentation:
+#     api:
+#       info:
+#         version: v1.0.0
+#         title: TODO List API
+#         description: Serverless TODO List application
+#     models:
+#       - name: CreateTodoItemRequest
+#         contentType: application/json
+#         schema: ${file(docs/create-todo-request.json)}
 
 functions:
 
@@ -71,12 +73,16 @@ functions:
           path: todos
           cors: true
           authorizer: Auth
-          reqValidatorName: RequestBodyValidator
-          documentation:
-            summary: Create a new item
-            description: Create a new item
-            requestModels:
-              'application/json': CreateTodoItemRequest
+          # reqValidatorName: RequestBodyValidator
+          request:
+            # Schema that will be used to validate incoming requests
+            schema:
+              application/json: ${file(models/create-todo-request.json)}
+          # documentation:
+          #   summary: Create a new item
+          #   description: Create a new item
+          #   requestModels:
+          #     'application/json': CreateTodoItemRequest
 
   # TODO: Configure this function
   UpdateTodo:
@@ -85,6 +91,11 @@ functions:
       - http:
           method: patch
           path: todos/{todoId}
+          cors: true
+          authorizer: Auth
+          equest:
+            schema:
+              application/json: ${file(models/update-todo-request.json)}
 
   # TODO: Configure this function
   DeleteTodo:
@@ -93,6 +104,8 @@ functions:
       - http:
           method: delete
           path: todos/{todoId}
+          cors: true
+          authorizer: Auth
 
   # TODO: Configure this function
   GenerateUploadUrl:
@@ -101,43 +114,50 @@ functions:
       - http:
           method: post
           path: todos/{todoId}/attachment
+          cors: true
+          authorizer: Auth
 
 resources:
   Resources:
     # TODO: Add any necessary AWS resources
+    GatewayResponseDefault4XX:
+      Type: AWS::ApiGateway::GatewayResponse
+      Properties:
+        ResponseParameters:
+          gatewayresponse.header.Access-Control-Allow-Origin: "'*'"
+          gatewayresponse.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+          gatewayresponse.header.Access-Control-Allow-Methods: "'GET,OPTIONS,POST,DELETE,PUT'"
+        ResponseType: DEFAULT_4XX
+        RestApiId:
+          Ref: ApiGatewayRestApi
+
+
     TodosDynamoDBTable:
       Type: AWS::DynamoDB::Table
       Properties:
         AttributeDefinitions:
         - AttributeName: userId # partition key
           AttributeType: S
-        - AttributeName: createdAt # sort key
+        - AttributeName: todoId # sort key
           AttributeType: S
-        - AttributeName: todoId # index key
-          AttributeType: S
+        # - AttributeName: createdAt # sort key
+        #   AttributeType: S
+        # - AttributeName: todoId # index key
+        #   AttributeType: S
 
         KeySchema:
         - AttributeName: userId
           KeyType: HASH
-        - AttributeName: createdAt
+        - AttributeName: todoId
           KeyType: RANGE
         BillingMode: PAY_PER_REQUEST
         TableName: ${self:provider.environment.TODOS_TABLE}
-        LocalSecondaryIndexes:
-        - IndexName: ${self:provider.environment.TODOS_ID_INDEX}
-          KeySchema:
-            - AttributeName: userId
-              KeyType: HASH
-            - AttributeName: todoId
-              KeyType: RANGE
-          Projection:
-            ProjectionType: ALL # What attributes will be copied to an index
-
-    RequestBodyValidator:
-      Type: AWS::ApiGateway::RequestValidator
-      Properties:
-        Name: 'request-body-validator'
-        RestApiId:
-          Ref: ApiGatewayRestApi
-        ValidateRequestBody: true
-        ValidateRequestParameters: false
+        # LocalSecondaryIndexes:
+        # - IndexName: ${self:provider.environment.TODOS_ID_INDEX}
+        #   KeySchema:
+        #     - AttributeName: userId
+        #       KeyType: HASH
+        #     - AttributeName: todoId
+        #       KeyType: RANGE
+        #   Projection:
+        #     ProjectionType: ALL # What attributes will be copied to an index

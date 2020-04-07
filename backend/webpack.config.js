@@ -3,7 +3,8 @@ const slsw = require('serverless-webpack');
 // var nodeExternals = require('webpack-node-externals')
 
 module.exports = {
-  mode: slsw.lib.webpack.isLocal ? 'development' : 'production',
+  // mode: slsw.lib.webpack.isLocal ? 'development' : 'production',
+  mode: 'development', // TODO: cleanup
   entry: slsw.lib.entries,
   // externals: [nodeExternals()],
   devtool: 'source-map',
