@@ -55,6 +55,7 @@ export class Todos extends React.PureComponent<TodosProps, TodosState> {
         todos: [...this.state.todos, newTodo],
         newTodoName: ''
       })
+      this.forceUpdate()
     } catch {
       alert('Todo creation failed')
     }
@@ -123,9 +124,10 @@ export class Todos extends React.PureComponent<TodosProps, TodosState> {
               labelPosition: 'left',
               icon: 'add',
               content: 'New task',
-              onClick: this.onTodoCreate
+              onClick: this.onTodoCreate,
             }}
             fluid
+            value={this.state.newTodoName}
             actionPosition="left"
             placeholder="To change the world..."
             onChange={this.handleNameChange}

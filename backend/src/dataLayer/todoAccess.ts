@@ -35,7 +35,7 @@ export class TodoAccess {
   ) {}
 
   async createItem(dto: TodoItem): Promise<TodoItem> {
-    const item = await this.docClient
+    await this.docClient
       .put({
         TableName: TODOS_TABLE,
         Item: dto,
