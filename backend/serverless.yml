@@ -17,9 +17,12 @@ provider:
   environment:
     AWS_NODEJS_CONNECTION_REUSE_ENABLED: 1
     TODOS_TABLE: Todos-${self:provider.stage}-1
+    TODOS_BUCKET: todos-images-${self:provider.stage}-1
+    SIGNED_URL_EXPIRATION: 300
     # TODOS_ID_INDEX: UserIdTodoIdIndex
 
   iamRoleStatements:
+    # TODOS_TABLE
     - Effect: Allow
       Action:
         - dynamodb:Scan
@@ -33,7 +36,14 @@ provider:
     #   Action:
     #     - dynamodb:Query
     #   Resource: arn:aws:dynamodb:${self:provider.region}:*:table/${self:provider.environment.TODOS_TABLE}/index/${self:provider.environment.TODOS_ID_INDEX}
-
+   
+    # TODOS_BUCKET
+    - Effect: Allow
+      Action:
+        - s3:PutObject
+        - s3:GetObject
+        - s3:DeleteObject
+      Resource: arn:aws:s3:::${self:provider.environment.TODOS_BUCKET}/*
 
 
 # custom:
@@ -93,7 +103,7 @@ functions:
           path: todos/{todoId}
           cors: true
           authorizer: Auth
-          equest:
+          request:
             schema:
               application/json: ${file(models/update-todo-request.json)}
 
@@ -120,17 +130,26 @@ functions:
 resources:
   Resources:
     # TODO: Add any necessary AWS resources
+    # GatewayResponseDefault4XX:
+    #   Type: 'AWS::ApiGateway::GatewayResponse'
+    #   Properties:
+    #     ResponseParameters:
+    #       gatewayresponse.header.Access-Control-Allow-Origin: "'*'"
+    #       gatewayresponse.header.Access-Control-Allow-Headers: "'*'"
+    #     ResponseType: DEFAULT_4XX
+    #     RestApiId:
+    #       Ref: 'ApiGatewayRestApi'
     GatewayResponseDefault4XX:
       Type: AWS::ApiGateway::GatewayResponse
       Properties:
         ResponseParameters:
           gatewayresponse.header.Access-Control-Allow-Origin: "'*'"
+          gatewayresponse.header.Access-Control-Allow-Credentials: "'*'"
           gatewayresponse.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
-          gatewayresponse.header.Access-Control-Allow-Methods: "'GET,OPTIONS,POST,DELETE,PUT'"
+          gatewayresponse.header.Access-Control-Allow-Methods: "'DELETE,GET,HEAD,OPTIONS,PATCH,POST,PUT'"
         ResponseType: DEFAULT_4XX
         RestApiId:
           Ref: ApiGatewayRestApi
-
 
     TodosDynamoDBTable:
       Type: AWS::DynamoDB::Table
@@ -161,3 +180,38 @@ resources:
         #       KeyType: RANGE
         #   Projection:
         #     ProjectionType: ALL # What attributes will be copied to an index
+
+    AttachmentsBucket:
+      Type: AWS::S3::Bucket
+      Properties:
+        BucketName: ${self:provider.environment.TODOS_BUCKET}
+        CorsConfiguration:
+          CorsRules:
+          -
+            AllowedOrigins:
+            - '*'
+            AllowedHeaders: 
+            - '*'
+            AllowedMethods:
+            - GET
+            - POST
+            - PUT
+            - DELETE
+            - HEAD 
+            MaxAge: 3000
+
+    BucketPolicy:
+      Type: AWS::S3::BucketPolicy
+      Properties:
+        Bucket:
+          Ref: AttachmentsBucket
+        PolicyDocument:
+          Id: MyPolicy
+          Version: "2012-10-17"
+          Statement:
+            - Sid: PublicReadForGetBucketObjects
+              Effect: Allow
+              Principal: '*'
+              Action: 's3:GetObject'
+              Resource: 'arn:aws:s3:::${self:provider.environment.TODOS_BUCKET}/*'
+        
