@@ -1,45 +1,27 @@
 import 'source-map-support/register';
 
-import * as AWS from 'aws-sdk';
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 import * as middy from 'middy';
 import { cors, httpErrorHandler } from 'middy/middlewares';
-import * as uuid from 'uuid';
 
-import { CreateTodoRequest } from '../../requests/CreateTodoRequest';
 import { createLogger } from '../../utils/logger';
+import { createTodo } from '../../businessLogic/todos';
+import { CreateTodoRequest } from '../../requests/CreateTodoRequest';
 
-const docClient = new AWS.DynamoDB.DocumentClient({ convertEmptyValues: true });
-const { TODOS_TABLE } = process.env;
 const logger = createLogger('createTodo');
 
-export const handler = middy(
-  async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
-    const body: CreateTodoRequest = JSON.parse(event.body);
-    // TODO: Implement creating a new TODO item
-    const payload = {
-      ...body,
-      userId: event.requestContext.authorizer.principalId,
-      createdAt: new Date().toISOString(),
-      todoId: uuid.v4(),
-      done: false,
-      attachmentUrl: '',
-    };
+const createTodoHandler = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
+  const userId = event.requestContext.authorizer.principalId;
+  const body: CreateTodoRequest = JSON.parse(event.body);
+  logger.info('Caller event', event);
+  const item = await createTodo(userId, body);
+  const response = {
+    statusCode: 201,
+    body: JSON.stringify({ item }),
+  };
+  return response;
+};
 
-    logger.info('Create new item with', { payload });
-
-    await docClient
-      .put({
-        TableName: TODOS_TABLE,
-        Item: payload,
-      })
-      .promise();
-
-    return {
-      statusCode: 201,
-      body: JSON.stringify({ item: payload }),
-    };
-  },
-);
-
-handler.use(httpErrorHandler()).use(cors({ credentials: true }));
+export const handler = middy(createTodoHandler)
+  .use(httpErrorHandler())
+  .use(cors({ credentials: true }));
