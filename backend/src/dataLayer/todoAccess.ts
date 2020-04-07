@@ -6,7 +6,8 @@ import { TodoUpdate } from '../models/TodoUpdate';
 import { S3 } from 'aws-sdk';
 
 const XAWS = AWSXRay.captureAWS(AWS);
-const { TODOS_TABLE, TODOS_BUCKET } = process.env;
+const { TODOS_TABLE, TODOS_BUCKET, SIGNED_URL_EXPIRATION } = process.env;
+const signedUrlExpiration = Number(SIGNED_URL_EXPIRATION);
 
 const createDynamoDbClient = () => {
   if (process.env.IS_OFFLINE) {
@@ -80,7 +81,7 @@ export class TodoAccess {
         },
       })
       .promise();
-    return <TodoItem>(item as unknown);
+    return <TodoItem>item.Item;
   }
 
   async deleteItem(userId: string, todoId: string): Promise<void> {
@@ -115,5 +116,32 @@ export class TodoAccess {
       })
       .promise();
     return <TodoItem[]>payload.Items;
+  }
+
+  async updateAttachmentUrl(userId: string, todoId: string): Promise<void> {
+    const key = `${userId}_${todoId}`;
+    await this.docClient
+      .update({
+        TableName: TODOS_TABLE,
+        Key: {
+          userId,
+          todoId,
+        },
+        UpdateExpression: `SET attachmentUrl = :attachmentUrl`,
+        ExpressionAttributeValues: {
+          ':attachmentUrl': `https://${TODOS_BUCKET}.s3.amazonaws.com/${key}`,
+        },
+        ReturnValues: 'NONE',
+      })
+      .promise();
+  }
+
+  generatePresignedUrl(userId: string, todoId: string): string {
+    const key = `${userId}_${todoId}`;
+    return this.s3.getSignedUrl('putObject', {
+      Bucket: TODOS_BUCKET,
+      Key: key,
+      Expires: signedUrlExpiration,
+    });
   }
 }

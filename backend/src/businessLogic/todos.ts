@@ -34,7 +34,6 @@ export const createTodo = async (
   return todoAccess.createItem(dto);
 };
 
-
 export const deleteTodo = async (
   userId: string,
   todoId: string,
@@ -44,4 +43,12 @@ export const deleteTodo = async (
     await todoAccess.deleteFile(userId, todoId);
   }
   await todoAccess.deleteItem(userId, todoId);
+};
+
+export const generateUploadUrl = async (
+  userId: string,
+  todoId: string,
+): Promise<string> => {
+  await todoAccess.updateAttachmentUrl(userId, todoId);
+  return todoAccess.generatePresignedUrl(userId, todoId);
 };
